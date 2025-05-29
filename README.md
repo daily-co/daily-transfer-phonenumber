@@ -159,6 +159,8 @@ Response:
 
 ### Recreate dialin-config on target domain
 
+Note: the config on the old domain needs to be deleted before the configs can be made on the new domain. However, the configs on the old domain need to be deleted only after the phone numbers have been transferred.
+
 ```bash
 curl --request POST \
   --url 'https://api.daily.co/v1/domain-dialin-config' \

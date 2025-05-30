@@ -170,15 +170,36 @@ def build_transfer_plan(selected_numbers, root_pinless_configs, root_pin_configs
         print("\n📎 Found configs with no phone_number:")
         for idx, (key, entry) in enumerate(orphaned):
             print(f"[{idx}] {key} from {entry['src_type']}")
-        include = input("❓ Include these in the transfer plan? (y/n): ").strip().lower()
+        include = (
+            input("❓ Do you want to include any of these configs in the transfer plan? (y/n): ")
+            .strip()
+            .lower()
+        )
         if include == "y":
-            for key, entry in orphaned:
-                plan[key] = {
-                    "source_phone_id": None,
-                    "src_type": entry["src_type"],
-                    "config_id": entry["id"],
-                    "config_data": entry["config"],
-                }
+            choice = input("❓ Transfer all configs with no phone_number? (y/n): ").strip().lower()
+            if choice == "y":
+                selected_indices = list(range(len(orphaned)))
+            else:
+                indices_input = input(
+                    "Enter comma-separated list of indexes to transfer (e.g. 0,2): "
+                )
+                try:
+                    selected_indices = [int(i.strip()) for i in indices_input.split(",")]
+                except ValueError:
+                    print("⚠️ Invalid input. Skipping all orphaned configs.")
+                    selected_indices = []
+            for idx in selected_indices:
+                if 0 <= idx < len(orphaned):
+                    key, entry = orphaned[idx]
+                    config_copy = entry["config"].copy()
+                    if config_copy.get("phone_number") is None:
+                        config_copy.pop("phone_number", None)
+                    plan[key] = {
+                        "source_phone_id": None,
+                        "src_type": entry["src_type"],
+                        "config_id": entry["id"],
+                        "config_data": config_copy,
+                    }
 
     if skipped:
         print("\n⏭️ Skipped Numbers (may need to be manually added to verified-caller-ids):")

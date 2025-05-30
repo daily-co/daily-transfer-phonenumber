@@ -55,8 +55,10 @@ def delete_dialin_config(api_key, config_id):
     headers = {"Authorization": f"Bearer {api_key}"}
     response = requests.delete(url, headers=headers)
     if response.status_code in (200, 204):
+        success_log.append(config_id + " [config deleted]")
         print(f"✅ Deleted dialin config ID: {config_id}")
     else:
+        failure_log.append(config_id + " [config deletion failed]")
         print(f"⚠️ Failed to delete dialin config ID {config_id}: {response.text}")
 
 
@@ -80,14 +82,22 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
     config_id = entry["config_id"]
     config_data = entry["config_data"]
 
-    # Step a: Transfer the number
-    move_resp = request_phone_number_transfer(phone_id, source_api_key, target_api_key)
-    if move_resp.status_code not in (200, 201):
-        failure_log.append(identifier + " [transfer failed]")
-        print(f"❌ Failed to transfer {identifier}: {move_resp.text}")
-        return False
+    if not phone_id:
+        print(f"ℹ️ No phone number ID for {identifier}, skipping transfer step.")
+        phone_transfer_skipped = True
+    else:
+        phone_transfer_skipped = False
 
-    print(f"✅ Transferred number {identifier} to target domain")
+    # Step a: Transfer the number
+    if not phone_transfer_skipped:
+        move_resp = request_phone_number_transfer(phone_id, source_api_key, target_api_key)
+        if move_resp.status_code not in (200, 201):
+            failure_log.append(identifier + " [transfer failed]")
+            print(f"❌ Failed to transfer {identifier}: {move_resp.text}")
+            return False
+        else:
+            success_log.append(identifier + " [transfer successful]")
+            print(f"✅ Transferred number {identifier} to target domain")
 
     # Step b: Delete config in source domain
     if src_type == "domain-dialin-config" and config_id:
@@ -134,6 +144,7 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
                     phone_id, target_api_key, source_api_key
                 )
                 if rollback_resp.status_code in (200, 201):
+                    success_log.append(identifier + " [rollback successful]")
                     print(f"✅ Rolled back number {identifier} to source domain")
                 else:
                     failure_log.append(identifier + " [rollback failed]")
@@ -143,8 +154,10 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
                     print("Response:", rollback_resp.text)
                 if rollback_resp.status_code in (200, 201) and config_id:
                     create_dialin_config(source_api_key, restore_config_data)
+                    success_log.append(identifier + " [config restored]")
                     print(f"✅ Restored config for {identifier} in source domain")
             return False
+        success_log.append(identifier + " [config created]")
 
     return True
 
@@ -180,3 +193,12 @@ if __name__ == "__main__":
         )
         if not success:
             print(f"⚠️ Skipping {identifier} due to failure.")
+
+    with open("transfer_success.json", "w") as f:
+        json.dump(success_log, f, indent=2)
+
+    with open("transfer_failures.json", "w") as f:
+        json.dump(failure_log, f, indent=2)
+
+    print(f"\n✅ {len(success_log)} transfers succeeded.")
+    print(f"❌ {len(failure_log)} transfers failed.")

@@ -23,6 +23,8 @@ This CLI utility safely transfers purchased phone numbers and their associated `
 - `pip install -r requirements.txt`
 - `.env` file with `DAILY_SOURCE_API_KEY` and `DAILY_TARGET_API_KEY`
 
+## Usage
+
 Run:
 
 ```bash
@@ -33,6 +35,26 @@ python create-transfer-plan.py
 # for example change `room_creation_api` to point to a new url
 
 python transfer.py
+```
+
+Example of a transfer plan:
+
+```json
+{
+  "+10114870006": {
+    "source_phone_id": "uuid",
+    "src_type": "domain-dialin-config",
+    "config_id": "uuid",
+    "config_data": {
+      "phone_number": "+10114870006",
+      "sip_uri": "...",
+      "hmac": "...",
+      "room_creation_api": "https://example.com/api/dial",
+      "name_prefix": "+10114870006",
+      "type": "pinless_dialin"
+    }
+  }
+}
 ```
 
 ---
@@ -53,6 +75,7 @@ python transfer.py
 
 Deleting the dialin-configs in the source domain is required as the config 
 wont be created in the target domain until it is deleted.
+
 ---
 
 ## API Usage
@@ -84,7 +107,7 @@ Response:
 }
 ```
 
-### 🔍 List Pinless Dial-in Configs
+### 🔍 List Pin and Pinless Dial-in Configs
 
 (a) Domain-level (legacy)
 
@@ -94,7 +117,7 @@ curl --request GET \
   --header 'Authorization: Bearer <SOURCE_API_KEY>'
 ```
 
-Response, look inside: `config.pinless_dialin`
+Response, look inside: `config.pinless_dialin` and `config.pin_dialin`
 
 ```json
 {
@@ -131,6 +154,7 @@ Response:
 ```json
 {
   "id": "8505...",
+  "type": "pinless_dialin",
   "config": {
     "phone_number": "+1234567...",
     "room_creation_api": "...",
@@ -163,9 +187,23 @@ Response:
 }
 ``` 
 
-### Recreate dialin-config on target domain
+### Delete dialin-config on source domain
 
 Note: the config on the old domain needs to be deleted before the configs can be made on the new domain. However, the configs on the old domain need to be deleted only after the phone numbers have been transferred.
+
+The config_id is found in the transfer_plan.json, it corresponds to the `id` associated to the phone number in the `domain-dialin-config` response.
+
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -XDELETE \
+  https://api.daily.co/v1/domain-dialin-config/:config_id
+
+```
+
+### Recreate dialin-config on target domain
+
+
 
 ```bash
 curl --request POST \
@@ -175,9 +213,9 @@ curl --request POST \
   --data '{
     "type": "pinless_dialin",
     "config": {
-      "phone_number": "+1234567...",
-      "room_creation_api": "...",
-      "name_prefix": "...",
+      "phone_number": "+10114870006",
+      "room_creation_api": "https://example.com/api/dial",
+      "name_prefix": "+10114870006",
       "hmac": "...",
       "timeout_config": {
         "message": "No agent is available"

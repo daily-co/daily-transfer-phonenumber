@@ -10,8 +10,10 @@ DAILY_SOURCE_API_KEY = os.getenv("DAILY_SOURCE_API_KEY")
 DAILY_TARGET_API_KEY = os.getenv("DAILY_TARGET_API_KEY")
 BASE_URL = "https://api.daily.co/v1"
 
-if not DAILY_SOURCE_API_KEY:
-    raise ValueError("❌ DAILY_SOURCE_API_KEY is not set. Check your .env file.")
+if not DAILY_SOURCE_API_KEY or not DAILY_TARGET_API_KEY:
+    raise ValueError(
+        "❌ DAILY_SOURCE_API_KEY or DAILY_TARGET_API_KEY is not set. Check your .env file."
+    )
 
 
 def check_api_identity(label, token):
@@ -74,11 +76,16 @@ def get_dialin_configs():
 
     # Fetch from root config
     root_resp = requests.get(f"{BASE_URL}/", headers=headers)
-    root_configs = []
+    root_pinless_configs = []
+    root_pin_configs = []
     if root_resp.status_code == 200:
         root_data = root_resp.json()
-        root_configs = root_data.get("config", {}).get("pinless_dialin", [])
-        print(f"✅ Found {len(root_configs)} configs in root pinless_dialin")
+        root_pinless_configs = root_data.get("config", {}).get("pinless_dialin") or []
+        root_pin_configs = root_data.get("config", {}).get("pin_dialin") or []
+        print(
+            f"✅ Found {len(root_pinless_configs)} 'pinless_dialin' configs in root domain config"
+        )
+        print(f"✅ Found {len(root_pin_configs)} 'pin_dialin' configs in root domain config")
     else:
         print("⚠️ Failed to fetch root domain config:", root_resp.text)
 
@@ -92,9 +99,13 @@ def get_dialin_configs():
     else:
         print("⚠️ Failed to fetch domain-dialin-config:", dialin_resp.text)
 
-    if root_configs:
+    if root_pinless_configs:
         print("\n📎 Root pinless_dialin configs:")
-        for cfg in root_configs:
+        for cfg in root_pinless_configs:
+            print(json.dumps(cfg, indent=2))
+    if root_pin_configs:
+        print("\n📎 Root pin_dialin configs:")
+        for cfg in root_pin_configs:
             print(json.dumps(cfg, indent=2))
 
     if dialin_configs:
@@ -102,26 +113,34 @@ def get_dialin_configs():
         for cfg in dialin_configs:
             print(json.dumps(cfg, indent=2))
 
-    return root_configs, dialin_configs
+    return root_pinless_configs, root_pin_configs, dialin_configs
 
 
-def build_transfer_plan(selected_numbers, root_configs, dialin_configs):
+def build_transfer_plan(selected_numbers, root_pinless_configs, root_pin_configs, dialin_configs):
     # 1. Consolidate configs with dialin_config taking precedence
     config_map = {}
 
-    for cfg in root_configs:
+    for cfg in root_pinless_configs:
         key = cfg.get("phone_number") or cfg.get("sip_uri")
         if key:
-            config_map[key] = {"type": "root", "config": cfg, "id": None}
+            config_map[key] = {"src_type": "root-pinless", "config": cfg, "id": None}
+            config_map[key]["config"]["type"] = "pinless_dialin"
+
+    for cfg in root_pin_configs:
+        key = cfg.get("phone_number") or cfg.get("sip_uri")
+        if key:
+            config_map[key] = {"src_type": "root-pin", "config": cfg, "id": None}
+            config_map[key]["config"]["type"] = "pin_dialin"
 
     for cfg in dialin_configs:
         key = cfg.get("config", {}).get("phone_number") or cfg.get("config", {}).get("sip_uri")
         if key:
             config_map[key] = {
-                "type": "domain-dialin-config",
+                "src_type": "domain-dialin-config",
                 "config": cfg["config"],
                 "id": cfg.get("id"),
             }
+            config_map[key]["config"]["type"] = cfg.get("type")
 
     # 2. Add selected numbers to plan
     plan = {}
@@ -136,7 +155,7 @@ def build_transfer_plan(selected_numbers, root_configs, dialin_configs):
         entry = config_map.get(number)
         plan[number] = {
             "source_phone_id": phone_id,
-            "config_type": entry["type"] if entry else None,
+            "src_type": entry["src_type"] if entry else None,
             "config_id": entry["id"] if entry else None,
             "config_data": entry["config"] if entry else None,
         }
@@ -150,13 +169,13 @@ def build_transfer_plan(selected_numbers, root_configs, dialin_configs):
     if orphaned:
         print("\n📎 Found configs with no phone_number:")
         for idx, (key, entry) in enumerate(orphaned):
-            print(f"[{idx}] {key}")
+            print(f"[{idx}] {key} from {entry['src_type']}")
         include = input("❓ Include these in the transfer plan? (y/n): ").strip().lower()
         if include == "y":
             for key, entry in orphaned:
                 plan[key] = {
                     "source_phone_id": None,
-                    "config_type": entry["type"],
+                    "src_type": entry["src_type"],
                     "config_id": entry["id"],
                     "config_data": entry["config"],
                 }
@@ -215,9 +234,9 @@ if __name__ == "__main__":
         # print_numbers(selected_numbers)
 
         # Step 3: Fetch configs from both endpoints for discovery
-        root_configs, dialin_configs = get_dialin_configs()
+        root_pinless_configs, root_pin_configs, dialin_configs = get_dialin_configs()
         transfer_plan, skipped_numbers = build_transfer_plan(
-            selected_numbers, root_configs, dialin_configs
+            selected_numbers, root_pinless_configs, root_pin_configs, dialin_configs
         )
 
         # Step 4: Write transfer plan to file

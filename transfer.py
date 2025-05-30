@@ -6,12 +6,25 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+success_log = []
+failure_log = []
+
 DAILY_SOURCE_API_KEY = os.getenv("DAILY_SOURCE_API_KEY")
 DAILY_TARGET_API_KEY = os.getenv("DAILY_TARGET_API_KEY")
 BASE_URL = "https://api.daily.co/v1"
 
-if not DAILY_SOURCE_API_KEY:
-    raise ValueError("❌ DAILY_SOURCE_API_KEY is not set. Check your .env file.")
+if not DAILY_SOURCE_API_KEY or not DAILY_TARGET_API_KEY:
+    raise ValueError(
+        "❌ DAILY_SOURCE_API_KEY or DAILY_TARGET_API_KEY is not set. Check your .env file."
+    )
+
+
+def get_domain_name(api_key):
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    response = requests.get(BASE_URL + "/", headers=headers)
+    if response.status_code == 200:
+        return response.json().get("domain_name")
+    raise ValueError("❌ Unable to retrieve domain name from API key.")
 
 
 def check_api_identity(label, token):
@@ -26,139 +39,114 @@ def check_api_identity(label, token):
         print("Response:", response.text)
 
 
-def get_purchased_phone_numbers():
-    headers = {"Authorization": f"Bearer {DAILY_SOURCE_API_KEY}"}
-    response = requests.get(f"{BASE_URL}/purchased-phone-numbers", headers=headers)
-
-    if response.status_code != 200:
-        print("Failed to fetch purchased phone numbers.")
-        print("Status Code:", response.status_code)
-        print("Response:", response.text)
-        return []
-
-    data = response.json()
-    numbers = data.get("data", [])
-    return numbers
-
-
-def print_numbers(numbers):
-    print("\n📞 Purchased Phone Numbers:")
-    for idx, num in enumerate(numbers):
-        print(f"[{idx}] {num['number']} — ID: {num['id']} — Name: {num['name']}")
-
-
-# Prompt user to select numbers for transfer
-def prompt_user_selection(numbers):
-    while True:
-        choice = input("\nDo you want to transfer all numbers? (y/n): ").strip().lower()
-        if choice == "y":
-            return numbers
-        elif choice == "n":
-            indices = input("Enter comma-separated list of indexes to transfer (e.g. 0,2): ")
-            try:
-                selected_indices = [int(i.strip()) for i in indices.split(",")]
-                selected = [numbers[i] for i in selected_indices if 0 <= i < len(numbers)]
-                if not selected:
-                    print("No valid indexes selected. Try again.")
-                    continue
-                return selected
-            except ValueError:
-                print("Invalid input. Please enter numeric indexes.")
-        else:
-            print("Please enter 'y' or 'n'.")
-
-
-# Fetch configs from both root and domain-dialin-config endpoints
-def get_dialin_configs():
-    headers = {"Authorization": f"Bearer {DAILY_SOURCE_API_KEY}"}
-
-    # Fetch from root config
-    root_resp = requests.get(f"{BASE_URL}/", headers=headers)
-    root_configs = []
-    if root_resp.status_code == 200:
-        root_data = root_resp.json()
-        root_configs = root_data.get("config", {}).get("pinless_dialin", [])
-        print(f"✅ Found {len(root_configs)} configs in root pinless_dialin")
+def create_dialin_config(api_key, config_data):
+    url = f"{BASE_URL}/domain-dialin-config"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    response = requests.post(url, headers=headers, json=config_data)
+    if response.status_code in (200, 201):
+        return response.json()
     else:
-        print("⚠️ Failed to fetch root domain config:", root_resp.text)
+        print(f"❌ Failed to create dialin config: {response.text}")
+        return None
 
-    # Fetch from domain-dialin-config
-    dialin_resp = requests.get(f"{BASE_URL}/domain-dialin-config", headers=headers)
-    dialin_configs = []
-    if dialin_resp.status_code == 200:
-        dialin_data = dialin_resp.json()
-        dialin_configs = dialin_data.get("data", [])
-        print(f"✅ Found {len(dialin_configs)} configs in domain-dialin-config")
+
+def delete_dialin_config(api_key, config_id):
+    url = f"{BASE_URL}/domain-dialin-config/{config_id}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    response = requests.delete(url, headers=headers)
+    if response.status_code in (200, 204):
+        print(f"✅ Deleted dialin config ID: {config_id}")
     else:
-        print("⚠️ Failed to fetch domain-dialin-config:", dialin_resp.text)
-
-    if root_configs:
-        print("\n📎 Root pinless_dialin configs:")
-        for cfg in root_configs:
-            print(json.dumps(cfg, indent=2))
-
-    if dialin_configs:
-        print("\n📎 Domain-dialin-config entries:")
-        for cfg in dialin_configs:
-            print(json.dumps(cfg, indent=2))
-
-    return root_configs, dialin_configs
+        print(f"⚠️ Failed to delete dialin config ID {config_id}: {response.text}")
 
 
-def build_transfer_plan(selected_numbers, root_configs, dialin_configs):
-    plan = {}
-    skipped_numbers = {}
+def request_phone_number_transfer(phone_id, from_api_key, to_api_key):
+    headers = {
+        "Authorization": f"Bearer {from_api_key}",
+        "Content-Type": "application/json",
+    }
+    url = f"{BASE_URL}/transfer-phone-number/{phone_id}"
+    payload = {
+        "transferDomainName": get_domain_name(to_api_key),
+        "transferDomainApi": to_api_key,
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    return response
 
-    for num in selected_numbers:
-        phone_number = num["number"]
-        phone_id = num.get("id")
 
-        if not phone_id:
-            skipped_numbers[phone_number] = num.get("name", "")
-            continue
+def transfer_number_and_config(identifier, entry, source_api_key, target_api_key):
+    phone_id = entry["source_phone_id"]
+    src_type = entry["src_type"]
+    config_id = entry["config_id"]
+    config_data = entry["config_data"]
 
-        match = None
-        match_type = None
-        match_id = None
+    # Step a: Transfer the number
+    move_resp = request_phone_number_transfer(phone_id, source_api_key, target_api_key)
+    if move_resp.status_code not in (200, 201):
+        failure_log.append(identifier + " [transfer failed]")
+        print(f"❌ Failed to transfer {identifier}: {move_resp.text}")
+        return False
 
-        # Try to match in domain-dialin-configs first
-        for cfg in dialin_configs:
-            cfg_number = cfg.get("config", {}).get("phone_number")
-            if cfg_number == phone_number:
-                match = cfg["config"]
-                match_type = "domain-dialin-config"
-                match_id = cfg["id"]
-                break
+    print(f"✅ Transferred number {identifier} to target domain")
 
-        # Fallback to root configs
-        if not match:
-            for cfg in root_configs:
-                if cfg.get("sip_uri", "").find(phone_id[:6]) != -1:
-                    match = cfg
-                    match_type = "root"
-                    break
+    # Step b: Delete config in source domain
+    if src_type == "domain-dialin-config" and config_id:
+        delete_dialin_config(source_api_key, config_id)
 
-        plan[phone_number] = {
-            "source_phone_id": phone_id,
-            "config_type": match_type,
-            "config_id": match_id,
-            "config_data": match,
-        }
+    # Step c: Copy config to target domain
+    if config_data:
+        new_config_data = config_data.copy()
+        restore_config_data = config_data.copy()
+        # Remove keys that are not part of the config
+        for key in ["sip_uri", "target_room_creation_api", "source_room_creation_api"]:
+            new_config_data.pop(key, None)
+            restore_config_data.pop(key, None)
 
-    if skipped_numbers:
-        print("\n⏭️ Skipped Numbers (may need to be manually added to verified-caller-ids):")
-        print(json.dumps(skipped_numbers, indent=2))
-        print("\n💾 Writing skipped numbers to unverified_caller_ids.json...")
-        with open("unverified_caller_ids.json", "w") as f:
-            json.dump(
-                [{"number": number, "name": name} for number, name in skipped_numbers.items()],
-                f,
-                indent=2,
-            )
+        new_config_data["room_creation_api"] = config_data.get(
+            "target_room_creation_api"
+        ) or config_data.get("room_creation_api")
 
-    print("\n📦 Transfer Plan Summary:")
-    print(json.dumps(plan, indent=2))
-    return plan, skipped_numbers
+        restore_config_data["room_creation_api"] = config_data.get(
+            "source_room_creation_api"
+        ) or config_data.get("room_creation_api")
+
+        # Validate required field
+        if not new_config_data.get("room_creation_api"):
+            print(f"❌ Missing room_creation_api for {identifier}. Skipping.")
+            failure_log.append(identifier + " [missing room_creation_api]")
+            return False
+
+        # Validate nested objects
+        if "timeout_config" in new_config_data and not isinstance(
+            new_config_data["timeout_config"], dict
+        ):
+            print(f"⚠️ Invalid timeout_config format for {identifier}. Removing.")
+            new_config_data.pop("timeout_config")
+
+        create_resp = create_dialin_config(target_api_key, new_config_data)
+        if not create_resp:
+            failure_log.append(identifier + " [config failed]")
+            print(f"❌ Failed to create config for {identifier}")
+            rollback = input("🔁 Rollback transfer? (y/n): ").strip().lower()
+            if rollback == "y":
+                # Rollback: move number back and restore config
+                rollback_resp = request_phone_number_transfer(
+                    phone_id, target_api_key, source_api_key
+                )
+                if rollback_resp.status_code in (200, 201):
+                    print(f"✅ Rolled back number {identifier} to source domain")
+                else:
+                    failure_log.append(identifier + " [rollback failed]")
+                    print(
+                        f"❌ Failed to rollback {identifier}. Status: {rollback_resp.status_code}"
+                    )
+                    print("Response:", rollback_resp.text)
+                if rollback_resp.status_code in (200, 201) and config_id:
+                    create_dialin_config(source_api_key, restore_config_data)
+                    print(f"✅ Restored config for {identifier} in source domain")
+            return False
+
+    return True
 
 
 if __name__ == "__main__":
@@ -172,20 +160,23 @@ if __name__ == "__main__":
         print("\n❌ Transfer cancelled by user.")
         exit()
 
-    # Step 1: Fetch purchased phone numbers
-    numbers = get_purchased_phone_numbers()
-    if numbers:
-        print_numbers(numbers)
+    # Step 1: Load and verify transfer_plan.json
+    try:
+        with open("transfer_plan.json") as f:
+            transfer_plan = json.load(f)
+    except Exception as e:
+        print(f"❌ Failed to load transfer_plan.json: {e}")
+        exit()
 
-        # Step 2: Prompt user to select numbers for transfer
-        selected_numbers = prompt_user_selection(numbers)
-        # print("\n Selected numbers for transfer:")
-        # print_numbers(selected_numbers)
+    if not transfer_plan:
+        print("❌ transfer_plan.json is empty. Nothing to transfer.")
+        exit()
 
-        # Step 3: Fetch configs from both endpoints for discovery
-        root_configs, dialin_configs = get_dialin_configs()
-        transfer_plan, skipped_numbers = build_transfer_plan(
-            selected_numbers, root_configs, dialin_configs
+    # Step 2: Process each entry in the plan
+    for identifier, entry in transfer_plan.items():
+        print(f"\n📞 Processing {identifier}...")
+        success = transfer_number_and_config(
+            identifier, entry, DAILY_SOURCE_API_KEY, DAILY_TARGET_API_KEY
         )
-    else:
-        print("❌ No purchased phone numbers found.")
+        if not success:
+            print(f"⚠️ Skipping {identifier} due to failure.")

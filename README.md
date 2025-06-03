@@ -2,7 +2,9 @@
 
 ## Overview
 
-This CLI utility safely transfers purchased phone numbers and their associated `pinless_dialin` configurations from one Daily.co domain to another. Bear in mind that the transfer should be done on a day when there are no calls in progress. **As the transfer will result in call disconnects!**
+This CLI utility safely transfers purchased phone numbers and their associated `pinless_dialin` configurations from one Daily.co domain to another. Bear in mind that the transfer should be done on a day when there are no calls in progress. **As the transfer will result in active calls to disconnect!** 
+
+This is important for Daily.co customers [migrating from DailyBots to Pipecat Cloud](https://docs.pipecat.daily.co/pipecat-in-production/daily-bots-migration).
 
 ---
 

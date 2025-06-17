@@ -1,5 +1,7 @@
+import json as json_module
 import json
 import os
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -13,15 +15,74 @@ DAILY_SOURCE_API_KEY = os.getenv("DAILY_SOURCE_API_KEY")
 DAILY_TARGET_API_KEY = os.getenv("DAILY_TARGET_API_KEY")
 BASE_URL = "https://api.daily.co/v1"
 
+# Retry configuration for rate limit handling
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+INITIAL_DELAY = int(os.getenv("INITIAL_DELAY", "1"))
+BACKOFF_FACTOR = int(os.getenv("BACKOFF_FACTOR", "2"))
+TRANSFER_DELAY = int(os.getenv("TRANSFER_DELAY", "2"))
+
 if not DAILY_SOURCE_API_KEY or not DAILY_TARGET_API_KEY:
     raise ValueError(
         "❌ DAILY_SOURCE_API_KEY or DAILY_TARGET_API_KEY is not set. Check your .env file."
     )
 
 
+def make_api_request(method, url, headers=None, json_data=None, retry_on_codes=None):
+    """
+    Make an API request with automatic retry on failure.
+    
+    Args:
+        method: HTTP method ('GET', 'POST', 'DELETE')
+        url: Full URL to call
+        headers: Request headers
+        json_data: JSON payload for POST requests
+        retry_on_codes: List of status codes that should trigger a retry (default: [400, 429])
+    
+    Returns:
+        requests.Response object
+    """
+    retry_on_codes = retry_on_codes or [400, 429]
+    
+    def _make_request():
+        if method.upper() == 'GET':
+            response = requests.get(url, headers=headers)
+        elif method.upper() == 'POST':
+            response = requests.post(url, headers=headers, json=json_data)
+        elif method.upper() == 'DELETE':
+            response = requests.delete(url, headers=headers)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        
+        if response.status_code in retry_on_codes:
+            raise Exception(f"HTTP {response.status_code} error (possibly rate limit): {response.text}")
+        
+        return response
+    
+    for attempt in range(MAX_RETRIES):
+        try:
+            return _make_request()
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                # Return a mock response for the last failed attempt
+                class MockResponse:
+                    def __init__(self, status_code, text):
+                        self.status_code = status_code
+                        self.text = text
+                    def json(self):
+                        try:
+                            return json_module.loads(self.text)
+                        except:
+                            return {"error": self.text}
+                return MockResponse(retry_on_codes[0], str(e))
+            
+            delay = INITIAL_DELAY * (BACKOFF_FACTOR ** attempt)
+            print(f"⏳ Request failed, retrying in {delay} seconds... (attempt {attempt + 1}/{MAX_RETRIES})")
+            time.sleep(delay)
+
+
 def get_domain_name(api_key):
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    response = requests.get(BASE_URL + "/", headers=headers)
+    response = make_api_request("GET", f"{BASE_URL}/", headers=headers)
     if response.status_code == 200:
         return response.json().get("domain_name")
     raise ValueError("❌ Unable to retrieve domain name from API key.")
@@ -29,7 +90,7 @@ def get_domain_name(api_key):
 
 def check_api_identity(label, token):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    response = requests.get(BASE_URL + "/", headers=headers)
+    response = make_api_request("GET", f"{BASE_URL}/", headers=headers)
     if response.status_code == 200:
         data = response.json()
         print(f"\n🔑 {label} domain: {data.get('domain_name')} (id: {data.get('domain_id')})")
@@ -42,7 +103,8 @@ def check_api_identity(label, token):
 def create_dialin_config(api_key, config_data):
     url = f"{BASE_URL}/domain-dialin-config"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    response = requests.post(url, headers=headers, json=config_data)
+    response = make_api_request("POST", url, headers=headers, json_data=config_data)
+    
     if response.status_code in (200, 201):
         return response.json()
     else:
@@ -53,7 +115,8 @@ def create_dialin_config(api_key, config_data):
 def delete_dialin_config(api_key, config_id):
     url = f"{BASE_URL}/domain-dialin-config/{config_id}"
     headers = {"Authorization": f"Bearer {api_key}"}
-    response = requests.delete(url, headers=headers)
+    response = make_api_request("DELETE", url, headers=headers)
+    
     if response.status_code in (200, 204):
         success_log.append(config_id + " [config deleted]")
         print(f"✅ Deleted dialin config ID: {config_id}")
@@ -72,8 +135,7 @@ def request_phone_number_transfer(phone_id, from_api_key, to_api_key):
         "transferDomainName": get_domain_name(to_api_key),
         "transferDomainApi": to_api_key,
     }
-    response = requests.post(url, headers=headers, json=payload)
-    return response
+    return make_api_request("POST", url, headers=headers, json_data=payload)
 
 
 def transfer_number_and_config(identifier, entry, source_api_key, target_api_key):
@@ -186,13 +248,18 @@ if __name__ == "__main__":
         exit()
 
     # Step 2: Process each entry in the plan
-    for identifier, entry in transfer_plan.items():
+    for idx, (identifier, entry) in enumerate(transfer_plan.items()):
         print(f"\n📞 Processing {identifier}...")
         success = transfer_number_and_config(
             identifier, entry, DAILY_SOURCE_API_KEY, DAILY_TARGET_API_KEY
         )
         if not success:
             print(f"⚠️ Skipping {identifier} due to failure.")
+        
+        # Add a small delay between transfers to avoid rate limits
+        if idx < len(transfer_plan) - 1:
+            print(f"⏳ Waiting {TRANSFER_DELAY} seconds before next transfer...")
+            time.sleep(TRANSFER_DELAY)
 
     with open("transfer_success.json", "w") as f:
         json.dump(success_log, f, indent=2)

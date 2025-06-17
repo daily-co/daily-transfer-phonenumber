@@ -143,6 +143,7 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
     src_type = entry["src_type"]
     config_id = entry["config_id"]
     config_data = entry["config_data"]
+    new_phone_id = None  # Track the new phone ID for potential rollback
 
     if not phone_id:
         print(f"ℹ️ No phone number ID for {identifier}, skipping transfer step.")
@@ -158,8 +159,11 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
             print(f"❌ Failed to transfer {identifier}: {move_resp.text}")
             return False
         else:
+            # Extract the new phone ID from the response
+            move_data = move_resp.json()
+            new_phone_id = move_data.get("newId")
             success_log.append(identifier + " [transfer successful]")
-            print(f"✅ Transferred number {identifier} to target domain")
+            print(f"✅ Transferred number {identifier} to target domain (new ID: {new_phone_id})")
 
     # Step b: Delete config in source domain
     if src_type == "domain-dialin-config" and config_id:
@@ -200,10 +204,10 @@ def transfer_number_and_config(identifier, entry, source_api_key, target_api_key
             failure_log.append(identifier + " [config failed]")
             print(f"❌ Failed to create config for {identifier}")
             rollback = input("🔁 Rollback transfer? (y/n): ").strip().lower()
-            if rollback == "y":
-                # Rollback: move number back and restore config
+            if rollback == "y" and new_phone_id:
+                # Rollback: move number back using the NEW phone ID
                 rollback_resp = request_phone_number_transfer(
-                    phone_id, target_api_key, source_api_key
+                    new_phone_id, target_api_key, source_api_key
                 )
                 if rollback_resp.status_code in (200, 201):
                     success_log.append(identifier + " [rollback successful]")

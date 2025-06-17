@@ -104,10 +104,17 @@ Transfer plan entry format:
 ### Important Considerations
 
 - Phone transfers disconnect active calls - ensure no calls in progress
-- Configs without phone numbers (SIP-only) are also transferred
+- Configs without phone numbers (SIP-only) are prompted for optional transfer
+- Configs for deleted phone numbers are separated into `orphaned_phone_configs.json`
 - Script detects and prompts for correction of invalid "dailybots" room_creation_api values
 - Unverified caller IDs are saved to `unverified_caller_ids.json` for manual addition
 - Success/failure logs are saved to `transfer_success.json` and `transfer_failures.json`
+
+### Orphaned Config Handling
+
+The script distinguishes between two types of orphaned configs:
+1. **SIP-only configs** (no phone_number field) - Can be optionally transferred
+2. **Configs for deleted phone numbers** - Cannot be transferred, saved to `orphaned_phone_configs.json`
 
 ### Rate Limit Handling
 

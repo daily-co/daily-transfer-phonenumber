@@ -142,9 +142,13 @@ def build_transfer_plan(selected_numbers, root_pinless_configs, root_pin_configs
             }
             config_map[key]["config"]["type"] = cfg.get("type")
 
-    # 2. Add selected numbers to plan
+    # 2. Create a set of valid phone numbers from selected numbers
+    valid_phone_numbers = {num["number"] for num in selected_numbers}
+    
+    # 3. Add selected numbers to plan
     plan = {}
     skipped = {}
+    orphaned_phone_configs = []
 
     for num in selected_numbers:
         number = num["number"]
@@ -160,25 +164,57 @@ def build_transfer_plan(selected_numbers, root_pinless_configs, root_pin_configs
             "config_data": entry["config"] if entry else None,
         }
 
-    # 3. Prompt user about orphaned configs with no phone_number
-    orphaned = []
+    # 4. Separate orphaned configs into two categories
+    orphaned_sip_configs = []  # Configs with sip_uri but no phone_number (can be transferred)
+    orphaned_phone_configs = []  # Configs with phone_number that doesn't exist (cannot be transferred)
+    
     for key, entry in config_map.items():
-        if key not in plan and entry["config"].get("phone_number") is None:
-            orphaned.append((key, entry))
+        if key not in plan:
+            config = entry["config"]
+            phone_number = config.get("phone_number")
+            
+            if phone_number:
+                # This is a config for a phone number that doesn't exist anymore
+                if phone_number not in valid_phone_numbers:
+                    orphaned_phone_configs.append((key, entry))
+            elif config.get("sip_uri"):
+                # This is a SIP-only config (no phone number)
+                orphaned_sip_configs.append((key, entry))
 
-    if orphaned:
-        print("\n📎 Found configs with no phone_number:")
-        for idx, (key, entry) in enumerate(orphaned):
+    # Handle orphaned configs for deleted phone numbers
+    if orphaned_phone_configs:
+        print("\n⚠️ Found configs for deleted/non-existent phone numbers:")
+        for key, entry in orphaned_phone_configs:
+            print(f"  - {key} from {entry['src_type']}")
+        print("These configs will be saved to orphaned_phone_configs.json for review.")
+        
+        # Save orphaned phone configs to a separate file
+        orphaned_data = {}
+        for key, entry in orphaned_phone_configs:
+            orphaned_data[key] = {
+                "src_type": entry["src_type"],
+                "config_id": entry["id"],
+                "config_data": entry["config"],
+                "reason": "phone_number_not_found"
+            }
+        
+        with open("orphaned_phone_configs.json", "w") as f:
+            json.dump(orphaned_data, f, indent=2)
+
+    # Handle SIP-only configs
+    if orphaned_sip_configs:
+        print("\n📎 Found SIP-only configs (no phone_number):")
+        for idx, (key, entry) in enumerate(orphaned_sip_configs):
             print(f"[{idx}] {key} from {entry['src_type']}")
         include = (
-            input("❓ Do you want to include any of these configs in the transfer plan? (y/n): ")
+            input("❓ Do you want to include any of these SIP-only configs in the transfer plan? (y/n): ")
             .strip()
             .lower()
         )
         if include == "y":
-            choice = input("❓ Transfer all configs with no phone_number? (y/n): ").strip().lower()
+            choice = input("❓ Transfer all SIP-only configs? (y/n): ").strip().lower()
             if choice == "y":
-                selected_indices = list(range(len(orphaned)))
+                selected_indices = list(range(len(orphaned_sip_configs)))
             else:
                 indices_input = input(
                     "Enter comma-separated list of indexes to transfer (e.g. 0,2): "
@@ -186,11 +222,11 @@ def build_transfer_plan(selected_numbers, root_pinless_configs, root_pin_configs
                 try:
                     selected_indices = [int(i.strip()) for i in indices_input.split(",")]
                 except ValueError:
-                    print("⚠️ Invalid input. Skipping all orphaned configs.")
+                    print("⚠️ Invalid input. Skipping all SIP-only configs.")
                     selected_indices = []
             for idx in selected_indices:
-                if 0 <= idx < len(orphaned):
-                    key, entry = orphaned[idx]
+                if 0 <= idx < len(orphaned_sip_configs):
+                    key, entry = orphaned_sip_configs[idx]
                     config_copy = entry["config"].copy()
                     if config_copy.get("phone_number") is None:
                         config_copy.pop("phone_number", None)

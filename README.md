@@ -49,7 +49,9 @@ This section gives you the context and essential information you'll need before 
 
 - 🔍 **Information on Daily's PSTN and SIP infrastructure**: [Daily Telephony Overview](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-telephony-overview)
 - 📋 **Managing Daily Phone Numbers**: [Daily Phone Numbers](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-phone-numbers)
-- 📋 **Managing Daily Dial-in Configs**: [Daily Dial-in Configs](https://docs.daily.co/reference/rest-api/domainDialinConfig
+- 📋 **Managing Daily Dial-in Configs**: . The configs can be in two places,
+  - on the [Domain config](https://docs.daily.co/reference/rest-api/your-domain/set-domain-config#pinless_dialin)
+  - in the [Dial-in Configs](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-telephony-overview#configure-pinless-dial-in)
 - 📞 **Setting up Daily Dial-in**: [Daily Dial-in](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-in)
 - 📞 **Setting up Daily Dial-out**: [Daily Dial-out](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-out)
 
@@ -159,13 +161,13 @@ The utility automatically handles rate limits and temporary API failures:
    - Step 1: Fetch purchased phone numbers
    - Step 2: Prompt user to select numbers
    - Step 3: Discover associated `pinless_dialin`, `pin_dialin` and related configs (including ones without phone numbers)
-   - Generate a `transfer_plan.json` structure summarizing everything that will be transferred
+   - Step 4: Generate a `transfer_plan.json` structure summarizing everything that will be transferred
 
 2. **Phase 2 — Per-Number Transfer (Write):**
-   - For each phone number:
-     - Step 4: Transfer the phone number via Daily API
-     - Step 5: Delete the old config in the source domain
-     - Step 6: Recreate the config in the target domain
+   - For each phone number in the `transfer_plan.json`:
+     - Step a: Transfer the phone number via Daily API
+     - Step b: Delete the old config in the source domain
+     - Step c: Recreate the config in the target domain
 
 Deleting the dialin-configs in the source domain is required as the
 config wont be created in the target domain until it is deleted.

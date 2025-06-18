@@ -13,9 +13,9 @@ This CLI utility helps you safely transfer purchased phone numbers and their ass
 ### Notes
 
 - This utility is **recommended** if you have existing phone numbers in Daily Bots and want to continue using them in Pipecat Cloud.
-- If you do **not** need the same phone numbers, you can [purchase new ones](https://docs.daily.co/reference/rest-api/phone-numbers/buy-phone-number) using your Daily API key.
-- **Important**: Transferring phone numbers will disconnect any active calls. Please ensure that no calls are in progress before running the script.
-- For more information on how to transition your applications from Daily Bots to Pipecat Cloud, see our [migration guide](https://docs.pipecat.daily.co/pipecat-in-production/daily-bots-migration).
+- If you don’t need to keep your existing numbers, you can [purchase new phone numbers](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-phone-numbers) directly in Pipecat Cloud.
+- **Important**: Transferring phone numbers will disconnect any active calls. Please make sure there are no calls in progress before running the script.
+- For help with migrating your application from Daily Bots to Pipecat Cloud, see our [migration guide](https://docs.pipecat.daily.co/pipecat-in-production/daily-bots-migration).
 
 ℹ️ More background and account setup guidance can be found in the [Quick Primer](#quick-primer).
 
@@ -45,15 +45,14 @@ This section gives you the context and essential information you'll need before 
 | `DAILY_SOURCE_API_KEY` | Your original Daily Bots (source) domain | https://bots.daily.co/dashboard/secrets               |
 | `DAILY_TARGET_API_KEY` | Your Pipecat Cloud (target) domain       | Found in `Settings > Daily (WebRTC)` in Pipecat Cloud |
 
-### 📞 Managing Phone Numbers
+### 📞 Telephony: SIP, Dial-In & Phone Numbers
 
-You can use the following REST API endpoints to purchase new numbers or view your existing ones:
+- 🔍 **Information on Daily's PSTN and SIP infrastructure**: [Daily Telephony Overview](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-telephony-overview)
+- 📋 **Managing Daily Phone Numbers**: [Daily Phone Numbers](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-phone-numbers)
+- 📞 **Setting up Daily Dial-in**: [Daily Dial-in](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-in)
+- 📞 **Setting up Daily Dial-out**: [Daily Dial-out](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-out)
 
-- 🔍 **See available numbers**: [List available numbers](https://docs.daily.co/reference/rest-api/phone-numbers/list-available-numbers)
-- ➕ **Buy a new number**: [Buy number](https://docs.daily.co/reference/rest-api/phone-numbers/buy-phone-number)
-- 📋 **See what numbers you own**: [Purchased phone numbers](https://docs.daily.co/reference/rest-api/phone-numbers/purchased-phone-numbers)
-
-> ℹ️ Always use the **Daily (WebRTC) API Key** with the endpoints above, even if you’re using Pipecat Cloud.
+> ℹ️ Always use the provided **Daily (WebRTC) API Key** when using the endpoints mentioned in the guides above when you’re using Pipecat Cloud.
 
 ## Goals
 

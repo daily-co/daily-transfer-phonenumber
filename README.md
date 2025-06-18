@@ -63,6 +63,7 @@ This section gives you the context and essential information you'll need before 
 - [x] Build a full transfer plan in a dry-run/read-only phase
 - [x] Sequentially transfer phone numbers and their configs
   - [x] deleting configs from source domain and recreating in the target domain
+- [x] Handle rate limits and API failures with automatic retry
 
 ---
 
@@ -70,7 +71,7 @@ This section gives you the context and essential information you'll need before 
 
 - Python 3.7+
 - `pip install -r requirements.txt`
-- `.env` file with `DAILY_SOURCE_API_KEY` and `DAILY_TARGET_API_KEY`
+- `.env` file with `DAILY_SOURCE_API_KEY` and `DAILY_TARGET_API_KEY` (see env.example)
 
 ## Usage
 
@@ -114,6 +115,40 @@ If the dialin-config fails to be created, you have two choices:
 
 1. Rollback, i.e., the phone number will be transferred back to the original account
 2. do nothing, in this case, you will need to manually re-create the dialin-config in the new account
+
+### Generated Files
+
+The utility generates several files during execution:
+
+- `transfer_plan.json` - The complete transfer plan for review before execution
+- `unverified_caller_ids.json` - Phone numbers that need to be added as verified caller IDs
+- `orphaned_phone_configs.json` - Dial-in configs for phone numbers that no longer exist (cannot be transferred)
+- `transfer_success.json` - Log of successful transfers
+- `transfer_failures.json` - Log of failed transfers
+
+---
+
+## Configuration
+
+### Environment Variables
+
+The utility supports the following environment variables for rate limit handling:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DAILY_SOURCE_API_KEY` | Required | API key for the source Daily domain |
+| `DAILY_TARGET_API_KEY` | Required | API key for the target Daily domain |
+| `MAX_RETRIES` | 3 | Number of retry attempts for failed API requests |
+| `INITIAL_DELAY` | 1 | Initial delay in seconds before first retry |
+| `BACKOFF_FACTOR` | 2 | Multiplier for exponential backoff between retries |
+| `TRANSFER_DELAY` | 2 | Delay in seconds between each phone number transfer |
+
+### Rate Limit Handling
+
+The utility automatically handles rate limits and temporary API failures:
+- Retries failed requests with exponential backoff (e.g., 1s, 2s, 4s)
+- Adds configurable delays between transfers to prevent rate limits
+- Provides detailed error messages and retry status
 
 ---
 

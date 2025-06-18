@@ -2,13 +2,13 @@
 
 ## Overview
 
-This CLI utility helps you safely transfer purchased phone numbers and their associated `pinless_dialin` configurations from one [Daily.co](https://www.daily.co) domain to another.
+This CLI utility helps you safely transfer purchased phone numbers and their associated configurations from one [Daily.co](https://www.daily.co) domain to another.
 
 ### When should you use this tool?
 
 - You are migrating from **Daily Bots** to **Pipecat Cloud**
 - You want to move existing phone numbers to a new Daily domain (such as your Pipecat Cloud account)
-- You want to preserve phone numbers and `pinless_dialin` configs during migration
+- You want to preserve phone numbers and configurations after the migration
 
 ### Notes
 
@@ -49,6 +49,7 @@ This section gives you the context and essential information you'll need before 
 
 - 🔍 **Information on Daily's PSTN and SIP infrastructure**: [Daily Telephony Overview](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-telephony-overview)
 - 📋 **Managing Daily Phone Numbers**: [Daily Phone Numbers](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-phone-numbers)
+- 📋 **Managing Daily Dial-in Configs**: [Daily Dial-in Configs](https://docs.daily.co/reference/rest-api/domainDialinConfig
 - 📞 **Setting up Daily Dial-in**: [Daily Dial-in](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-in)
 - 📞 **Setting up Daily Dial-out**: [Daily Dial-out](https://docs.pipecat.daily.co/pipecat-in-production/telephony/daily-dial-out)
 

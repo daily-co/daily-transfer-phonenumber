@@ -174,6 +174,33 @@ config wont be created in the target domain until it is deleted.
 
 ---
 
+## Additional Utilities
+
+### Delete Phone Numbers
+
+The `delete-phone-numbers.py` utility allows you to bulk delete phone numbers from a Daily domain. This is useful for cleaning up phone numbers that are no longer needed.
+
+#### Usage
+
+```bash
+# Interactive mode - lists phone numbers and asks for confirmation
+python delete-phone-numbers.py <DAILY_API_KEY>
+
+# Delete all without confirmation (use with caution!)
+python delete-phone-numbers.py <DAILY_API_KEY> --delete-all
+```
+
+#### Features
+
+- Lists all phone numbers with details (ID, country, provider, creation date)
+- Shows domain information
+- Filters out already deleted numbers
+- Interactive confirmation with double-check for safety
+- `--delete-all` flag for automated deletion without prompts
+- Provides summary of successful/failed deletions
+
+---
+
 ## API Usage
 
 ### 🔍 List Purchased Phone Numbers

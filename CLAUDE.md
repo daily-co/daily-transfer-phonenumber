@@ -44,6 +44,15 @@ cp env.example .env
    python add-unverified-callerids.py
    ```
 
+5. **Delete Phone Numbers**:
+   ```bash
+   # Interactive mode with confirmations
+   python delete-phone-numbers.py <DAILY_API_KEY>
+   
+   # Delete all without confirmation
+   python delete-phone-numbers.py <DAILY_API_KEY> --delete-all
+   ```
+
 ## Architecture
 
 ### Key Components
@@ -65,6 +74,15 @@ cp env.example .env
    - Supports skipping config copy (numbers only)
    - Includes rollback functionality
 
+4. **delete-phone-numbers.py**: Bulk delete phone numbers from a domain
+   - Lists all phone numbers with details (ID, country, provider, creation date)
+   - Shows domain information
+   - Filters out already deleted numbers
+   - Interactive confirmation mode with double-check for safety
+   - `--delete-all` flag for automated deletion without prompts
+   - Provides summary of successful/failed deletions
+   - Uses the `/release-phone-number/{id}` endpoint
+
 ### Critical Transfer Flow
 
 1. **Phone Transfer**: Must happen before config deletion
@@ -80,6 +98,7 @@ cp env.example .env
 - `DELETE /v1/domain-dialin-config/{id}` - Delete config
 - `POST /v1/domain-dialin-config` - Create config
 - `POST /v1/verified-caller-ids` - Add verified caller ID
+- `DELETE /v1/release-phone-number/{id}` - Release (delete) phone number, it will also delete the corresponding dialin-config
 
 ### Key Data Structures
 

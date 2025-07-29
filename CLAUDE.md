@@ -34,17 +34,12 @@ cp env.example .env
    python transfer.py
    ```
 
-3. **Bulk Transfer** (alternative approach):
-   ```bash
-   python bulk_transfer.py
-   ```
-
-4. **Add Unverified Caller IDs**:
+3. **Add Unverified Caller IDs**:
    ```bash
    python add-unverified-callerids.py
    ```
 
-5. **Delete Phone Numbers**:
+4. **Delete Phone Numbers**:
    ```bash
    # Interactive mode with confirmations
    python delete-phone-numbers.py <DAILY_API_KEY>
@@ -69,12 +64,7 @@ cp env.example .env
    - Recreates configs in target domain
    - Supports rollback on failure
 
-3. **bulk_transfer.py**: Alternative all-in-one transfer script
-   - Combines discovery and transfer phases
-   - Supports skipping config copy (numbers only)
-   - Includes rollback functionality
-
-4. **delete-phone-numbers.py**: Bulk delete phone numbers from a domain
+3. **delete-phone-numbers.py**: Bulk delete phone numbers from a domain
    - Lists all phone numbers with details (ID, country, provider, creation date)
    - Shows domain information
    - Filters out already deleted numbers

@@ -144,17 +144,18 @@ def main():
     print("-" * 50)
     
     for i, phone in enumerate(phone_numbers, 1):
-        print(f"{i}. {phone.get('phone_number', 'N/A')}")
+        print(f"{i}. {phone.get('number', phone.get('phone_number', 'N/A'))}")
         print(f"   ID: {phone.get('id', 'N/A')}")
         print(f"   Country: {phone.get('country', 'N/A')}")
         print(f"   Provider: {phone.get('provider', 'N/A')}")
-        print(f"   Created: {phone.get('created_at', 'N/A')}")
+        print(f"   Created: {phone.get('created_date', phone.get('created_at', 'N/A'))}")
         if phone.get('deleted'):
             print(f"   Status: DELETED")
         print()
     
     # Step 3: Filter out already deleted phone numbers
-    active_phone_numbers = [phone for phone in phone_numbers if not phone.get('deleted')]
+    # Filter out deleted phone numbers - API might not have 'deleted' field
+    active_phone_numbers = [phone for phone in phone_numbers if not phone.get('deleted', False)]
     
     if not active_phone_numbers:
         print("All phone numbers are already deleted.")
@@ -189,7 +190,7 @@ def main():
     
     for phone in active_phone_numbers:
         phone_id = phone.get('id')
-        phone_number = phone.get('phone_number')
+        phone_number = phone.get('number') or phone.get('phone_number')
         
         # Skip if no ID found (shouldn't happen, but be safe)
         if not phone_id:
